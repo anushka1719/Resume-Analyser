@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Resume Analyzer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            background: linear-gradient(to right, #667eea, #764ba2);
+        }
+
+        .app {
+            max-width: 1000px;
+            margin: 40px auto;
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+        }
+
+        h2 { text-align: center; }
+
+        .form-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        input, select {
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            width: 180px;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #333;
+            color: white;
+        }
+
+        button:hover { background: #555; }
+
+        .dashboard {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+        }
+
+        .card {
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            background: #e3f2fd;
+        }
+
+        .badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
+        .good { background: #c8e6c9; }
+        .average { background: #fff9c4; }
+        .bad { background: #ffcdd2; }
+    </style>
+</head>
+
+<body>
+
+<div class="app">
+    <h2>AI Resume Analyzer</h2>
+
+    <div class="form-group">
+
+        <input type="text" id="name" placeholder="Name">
+        <input type="text" id="qualification" placeholder="Qualification">
+
+        <input type="text" id="resumeText" placeholder="Paste Resume Text">
+
+        <input type="file" id="pdfFile" accept=".pdf">
+
+        <input type="number" id="experience" placeholder="Experience">
+        <input type="number" id="projects" placeholder="Projects">
+
+        <select id="jobRole">
+            <option>Software Developer</option>
+            <option>Data Analyst</option>
+            <option>Business Analyst</option>
+        </select>
+
+    </div>
+
+    <div style="text-align:center; margin-top:10px;">
+        <button onclick="analyzeText()">Analyze Text</button>
+        <button onclick="analyzePDF()">Analyze PDF</button>
+    </div>
+
+    <div class="dashboard" id="dashboard"></div>
+</div>
+
+<script>
+
+let candidates = [];
+
+/* TEXT */
+function analyzeText() {
+
+    let name = document.getElementById("name").value;
+    let resume_text = document.getElementById("resumeText").value;
+    let experience = document.getElementById("experience").value;
+    let projects = document.getElementById("projects").value;
+    let role = document.getElementById("jobRole").value;
+
+    fetch("http://127.0.0.1:5000/analyze", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            resume_text,
+            experience,
+            projects,
+            role
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        addCandidate(name, role, data, experience, projects);
+    });
+}
+
+/* PDF */
+function analyzePDF() {
+
+    let file = document.getElementById("pdfFile").files[0];
+
+    let name = document.getElementById("name").value || "PDF Candidate";
+    let role = document.getElementById("jobRole").value;
+    let experience = document.getElementById("experience").value || 0;
+    let projects = document.getElementById("projects").value || 0;
+
+    let formData = new FormData();
+    formData.append("file", file);
+    formData.append("role", role);
+    formData.append("experience", experience);
+    formData.append("projects", projects);
+
+    fetch("http://127.0.0.1:5000/analyze-pdf", {
+        method: "POST",
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        addCandidate(name, role, data, experience, projects);
+    });
+}
+
+/* LEADERBOARD */
+function addCandidate(name, role, data, experience, projects) {
+
+    let candidate = {
+        name,
+        role,
+        score: data.score,
+        skills: data.skills_found,
+        experience,
+        projects
+    };
+
+    candidates.push(candidate);
+
+    renderLeaderboard();
+}
+
+function renderLeaderboard() {
+
+    let sorted = [...candidates].sort((a,b) => b.score - a.score);
+
+    document.getElementById("dashboard").innerHTML = sorted.map((c,i) => {
+
+        let badge = "";
+        let cls = "";
+
+        if (c.score >= 80) { badge = "Top Candidate"; cls="good"; }
+        else if (c.score >= 50) { badge = "Good Fit"; cls="average"; }
+        else { badge = "Needs Improvement"; cls="bad"; }
+
+        return `
+        <div class="card">
+            <h3>#${i+1} ${c.name}</h3>
+            <p><b>Role:</b> ${c.role}</p>
+            <p><b>Score:</b> ${c.score}</p>
+            <p><b>Skills:</b> ${c.skills.join(", ")}</p>
+            <p><b>Experience:</b> ${c.experience} yrs</p>
+            <p><b>Projects:</b> ${c.projects}</p>
+            <span class="badge ${cls}">${badge}</span>
+        </div>
+        `;
+    }).join("");
+}
+
+</script>
+
+</body>
+</html>
